@@ -1,5 +1,6 @@
-from api.models import Domain, Tenant
+from api.models import Domain, Tenant, User
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
 from django_tenants.admin import TenantAdminMixin
 
 
@@ -11,3 +12,7 @@ class TenantAdmin(TenantAdminMixin, admin.ModelAdmin):
 @admin.register(Domain)
 class DomainAdmin(TenantAdminMixin, admin.ModelAdmin):
         pass
+
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    pass
