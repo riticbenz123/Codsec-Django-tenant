@@ -1,7 +1,7 @@
+from django.contrib.auth.models import AbstractUser, User
 from django.db import models
-from django.contrib.auth.models import User
-from django_tenants.models import TenantMixin, DomainMixin
-from django.contrib.auth.models import AbstractUser
+from django_tenants.models import DomainMixin, TenantMixin
+
 
 # Create your models here.
 class Tenant(TenantMixin):
@@ -17,5 +17,24 @@ class Domain(DomainMixin):
     pass
 
 
+# class User(AbstractUser):
+#     pass
+
 class User(AbstractUser):
-    pass
+    tenant = models.ForeignKey(
+        Tenant,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='users'
+    )
+
+    def __str__(self):
+        return self.username
+
+    @property
+    def is_tenant_admin(self):
+        return self.is_staff and self.tenant is not None
+
+    # class Meta:
+    #     db_table = 'public"."auth_user'

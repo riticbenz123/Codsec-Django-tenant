@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate, get_user_model
 from django.shortcuts import render
+from django_tenants.utils import schema_context
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
@@ -8,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .models import Tenant
 from .serializers import LoginSerializer, RegisterSerializer
 
 User = get_user_model()
@@ -17,17 +19,33 @@ User = get_user_model()
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
+    hostname = request.get_host().split(':')[0]
+    schema_name = hostname.split('.')[0]
+    try:
+        with schema_context('public'):
+            tenant = Tenant.objects.get(schema_name=schema_name)
+    except Tenant.DoesNotExist:
+        return Response(
+            {"error": "Invalid domain – tenant not found"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    print(f"Registering for tenant: {tenant.name} ({schema_name})")
+
     serializer = RegisterSerializer(data=request.data)
     if serializer.is_valid():
-        user = serializer.save()
-        # token = Token.objects.create(user=user)
+        with schema_context('public'):
+            user = serializer.save()
+            user.tenant = tenant
+            user.save()
+
         refresh = RefreshToken.for_user(user)
         return Response({
-            # 'token': token.key,
             'refresh': str(refresh),
             'access': str(refresh.access_token),
             'user': serializer.data
         }, status=status.HTTP_201_CREATED)
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
