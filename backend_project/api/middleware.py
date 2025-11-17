@@ -1,37 +1,11 @@
 from django.contrib.auth import get_user_model
 from django.http import Http404
 from django_tenants.utils import get_public_schema_name, get_tenant_model
+from django.core.exceptions import PermissionDenied
 
 User = get_user_model()
 Tenant = get_tenant_model()
 from rest_framework.exceptions import NotAuthenticated
-
-# class TenantScopeMiddleware:
-#     def __init__(self, get_response):
-#         self.get_response = get_response
-
-#     def __call__(self, request):
-#         response = self.get_response(request)
-
-#         if not hasattr(request, 'tenant'):
-#             return response
-
-#         if request.tenant.schema_name == get_public_schema_name():
-#             return response
-
-#         if not request.user.is_authenticated:
-#             raise Http404("Tenant requires authentication")
-
-#         if request.user.is_superuser:
-#             return response
-
-#         if request.user.tenant != request.tenant:
-#             raise Http404("You do not have access to this flat")
-
-#         return response
-
-
-
 
 PUBLIC_TENANT_PATHS = [
     '/admin/',
@@ -44,7 +18,6 @@ PUBLIC_TENANT_PATHS = [
 ]
 
 STATIC_MEDIA_PATHS = ['/static/', '/media/']
-
 
 class TenantScopeMiddleware:
     def __init__(self, get_response):
@@ -83,6 +56,6 @@ class TenantScopeMiddleware:
 
         if getattr(request.user, 'tenant', None) != tenant:
             print("NO access")
-            raise Http404("You do not have access to this tenant.")
+            raise PermissionDenied("You do not have access to this tenant.")
 
         return response

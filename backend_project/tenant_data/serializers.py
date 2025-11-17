@@ -55,125 +55,118 @@ class ProductBatchSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("expiry_date must be after added_date.")
         return data
 
+
+class PurchaseItemCreateSerializer(serializers.Serializer):
+    batch_number = serializers.CharField(max_length=50)
+    product_id = serializers.IntegerField()
+    expiry_date = serializers.DateTimeField()
+    quantity = serializers.IntegerField(min_value=1)
+    cost_rate = serializers.DecimalField(max_digits=10, decimal_places=2)
+    selling_rate = serializers.DecimalField(max_digits=10, decimal_places=2)
+
 class PurchaseItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = PurchaseItem
-        fields = ['product_name', 'batch_number', 'quantity']
-        
-class PurchaseSerializer(serializers.ModelSerializer):
-    batch_number   = serializers.CharField(write_only=True)
-    product_id     = serializers.PrimaryKeyRelatedField(
-                        queryset=Product.objects.all(), write_only=True)
-    expiry_date    = serializers.DateTimeField(write_only=True)
-    cost_rate      = serializers.DecimalField(max_digits=10, decimal_places=2, write_only=True)
-    selling_rate   = serializers.DecimalField(
-                        max_digits=10, decimal_places=2, write_only=True, required=False, default=0)
-    quantity       = serializers.IntegerField(min_value=1)  # Same quantity for batch & purchase
-    cost_price     = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    supplier_name  = serializers.CharField(max_length=100)
+        fields = ['id', 'product_name', 'batch_number', 'cost_rate', 'selling_rate', 'quantity', 'total_selling_price', 'total_cost_price']
 
-    product_name   = serializers.CharField(source='product_batch.product.name', read_only=True)
-    total_cost     = serializers.SerializerMethodField()
-    batch_no = serializers.CharField(source='product_batch.batch_number', read_only=True)
-    items = PurchaseItemSerializer(many=True, read_only=True)
+class PurchaseSerializer(serializers.ModelSerializer):
+    items = PurchaseItemCreateSerializer(many=True, write_only=True)
 
     class Meta:
         model = Purchase
-        fields = [
-            'id', 'bill_no', 'batch_no',
-            'batch_number', 'product_id', 'expiry_date',
-            'quantity', 'cost_rate', 'selling_rate',
-            'cost_price', 'supplier_name',
-            'created_at', 'product_name', 'total_cost', 'items'
-        ]
-        read_only_fields = ['bill_no', 'created_at', 'product_name', 'total_cost', 'items']
+        fields = ['bill_no', 'supplier_name', 'purchase_date', 'total_amount', 'notes', 'items']
 
-    def get_total_cost(self, obj):
-        return obj.quantity * obj.cost_price
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        validated_data.pop('total_amount', None)  # Ignore input total_amount, calculate from items
+        purchase = Purchase.objects.create(**validated_data)
+        total = 0
+        for item_data in items_data:
+            product_id = item_data.pop('product_id')
+            expiry_date = item_data.pop('expiry_date')
+            product = Product.objects.get(id=product_id)
+            # Create Product_Batch
+            batch = Product_Batch.objects.create(
+                product=product,
+                batch_number=item_data['batch_number'],
+                expiry_date=expiry_date,
+                quantity=item_data['quantity'],
+                selling_rate=item_data['selling_rate'],
+                cost_rate=item_data['cost_rate'],
+            )
+            # Create PurchaseItem
+            purchase_item = PurchaseItem.objects.create(
+                purchase=purchase,
+                product_batch=batch,
+                product_name=product.name,
+                batch_number=batch.batch_number,
+                cost_rate=item_data['cost_rate'],
+                selling_rate=item_data['selling_rate'],
+                quantity=item_data['quantity'],
+            )
+            total += purchase_item.total_cost_price
+        purchase.total_amount = total
+        purchase.save()
+        return purchase
 
-    def validate(self, attrs):
-        batch_number = attrs.pop('batch_number')
-        product = attrs.pop('product_id')
-        expiry_date = attrs.pop('expiry_date')
-        quantity = attrs['quantity']
-        cost_rate = attrs.pop('cost_rate')
-        selling_rate = attrs.pop('selling_rate', Decimal('0.00'))
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['items'] = PurchaseItemSerializer(instance.items.all(), many=True).data
+        return ret
 
-        if Product_Batch.objects.filter(batch_number=batch_number).exists():
-            raise serializers.ValidationError({
-                "batch_number": f"Batch '{batch_number}' already exists."
-            })
+class SalesItemCreateSerializer(serializers.Serializer):
+    batch_number = serializers.CharField(max_length=50)
+    quantity = serializers.IntegerField(min_value=1)
 
-        # batch = Product_Batch.objects.create(
-        #     product=product,
-        #     batch_number=batch_number,
-        #     expiry_date=expiry_date,
-        #     quantity=quantity,          
-        #     cost_rate=cost_rate,
-        #     selling_rate=selling_rate
-        # )
-        batch = Product_Batch(
-            product=product,
-            batch_number=batch_number,
-            expiry_date=expiry_date,
-            quantity=quantity,
-            cost_rate=cost_rate,
-            selling_rate=selling_rate
-        )
-
-        attrs['product_batch'] = batch
-        if 'cost_price' not in attrs or attrs['cost_price'] in (None, 0, Decimal('0')):
-            attrs['cost_price'] = cost_rate
-
-        return attrs
-    
 class SalesItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = SalesItem
-        fields = ['product_name', 'batch_number', 'quantity']
+        fields = ['id', 'product_name', 'batch_number', 'cost_rate', 'selling_rate', 'quantity', 'total_selling_price', 'total_cost_price']
 
 class SaleSerializer(serializers.ModelSerializer):
-    batch_number = serializers.CharField(write_only=True)
-    batch_no = serializers.CharField(source='product_batch.batch_number', read_only=True)
-    product_name = serializers.CharField(source='product_batch.product.name', read_only=True)
-    total_selling = serializers.SerializerMethodField()
-    items = SalesItemSerializer(many=True, read_only=True)
+    items = SalesItemCreateSerializer(many=True, write_only=True)
+
     class Meta:
         model = Sale
-        fields = [
-            'id', 'bill_no', 'batch_number', 'batch_no', 'quantity',
-            'selling_price', 'customer_name', 'created_at',
-            'product_name', 'total_selling', 'items'
-        ]
-        read_only_fields = ['bill_no', 'created_at', 'product_name', 'total_selling', 'batch_no', 'items']
+        fields = ['bill_no', 'customer_name', 'total_amount', 'quantity', 'notes', 'items']
+        extra_kwargs = {
+            'total_amount': {'read_only': True},
+            'quantity': {'read_only': True}
+        }
 
-    def get_total_selling(self, obj):
-        return obj.quantity * obj.selling_price
-
-    def validate(self, attrs):
-        batch_number = attrs.pop('batch_number')
-        try:
-            batch = Product_Batch.objects.get(batch_number=batch_number)
-        except Product_Batch.DoesNotExist:
-            raise serializers.ValidationError({"batch_number": "Batch not found."})
-
-        attrs['product_batch'] = batch
-        if 'selling_price' not in attrs or not attrs['selling_price']:
-            attrs['selling_price'] = batch.selling_rate
-        else:
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        sale = Sale.objects.create(quantity=0, **validated_data)
+        total_amount = 0
+        total_quantity = 0
+        for item_data in items_data:
             try:
-                attrs['selling_price'] = Decimal(str(attrs['selling_price']))
-            except:
-                raise serializers.ValidationError({"selling_price": "Must be a valid decimal."})
-
-        requested = attrs['quantity']
-        # sold_so_far = batch.sales.aggregate(s=Sum('quantity'))['s'] or 0
-        
-        # available = batch.quantity - sold_so_far
-        available = batch.quantity
-        
-        if requested > available:
-            raise serializers.ValidationError(
-                f"Only {available} units left in batch {batch_number}."
+                batch = Product_Batch.objects.get(batch_number=item_data['batch_number'])
+            except Product_Batch.DoesNotExist:
+                raise serializers.ValidationError(f"Batch with number {item_data['batch_number']} does not exist.")
+            if item_data['quantity'] > batch.quantity:
+                raise serializers.ValidationError(f"Insufficient quantity in batch {item_data['batch_number']}. Available: {batch.quantity}")
+            # Create SalesItem
+            sales_item = SalesItem.objects.create(
+                sale=sale,
+                product_batch=batch,
+                product_name=batch.product.name,
+                batch_number=batch.batch_number,
+                cost_rate=batch.cost_rate,
+                selling_rate=batch.selling_rate,
+                quantity=item_data['quantity'],
             )
-        return attrs
+            total_amount += sales_item.total_selling_price
+            total_quantity += sales_item.quantity
+            # Update batch quantity
+            batch.quantity -= sales_item.quantity
+            batch.save()
+        sale.total_amount = total_amount
+        sale.quantity = total_quantity
+        sale.save()
+        return sale
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['items'] = SalesItemSerializer(instance.items.all(), many=True).data
+        return ret
