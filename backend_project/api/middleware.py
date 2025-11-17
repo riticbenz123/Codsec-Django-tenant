@@ -76,8 +76,13 @@ class TenantScopeMiddleware:
 
         if request.user.is_superuser:
             return response
+        print(request.user)
+        print(getattr(request.user, 'tenant', None))
+        print(tenant)
+        
 
         if getattr(request.user, 'tenant', None) != tenant:
+            print("NO access")
             raise Http404("You do not have access to this tenant.")
 
         return response
