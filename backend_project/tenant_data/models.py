@@ -15,6 +15,7 @@ class TenantData(models.Model):
 class Product(models.Model):
     name = models.CharField(max_length=15)
     product_type = models.CharField(max_length=15, blank=True)
+    expirable = models.BooleanField(default=True)
     
     def __str__(self):
         return self.name
@@ -38,9 +39,9 @@ class Product(models.Model):
 
 class Product_Batch(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    batch_number = models.CharField(max_length=50,unique=True)
+    batch_number = models.CharField(max_length=50, null=True)
     added_date = models.DateTimeField(auto_now_add=True)
-    expiry_date = models.DateTimeField()
+    expiry_date = models.DateTimeField(null=True)
     quantity = models.PositiveIntegerField(default=0)
     selling_rate = models.DecimalField(max_digits=10,decimal_places=2, default=0)
     cost_rate = models.DecimalField(max_digits=10,decimal_places=2, default=0)
@@ -68,7 +69,7 @@ class PurchaseItem(models.Model):
     purchase = models.ForeignKey('Purchase', on_delete=models.CASCADE, related_name='items')
     product_batch = models.ForeignKey('Product_Batch', on_delete=models.PROTECT, related_name='purchase_items')
     product_name = models.CharField(max_length=100)
-    batch_number = models.CharField(max_length=50)
+    batch_number = models.CharField(max_length=50, null=True)
     cost_rate = models.DecimalField(max_digits=10,decimal_places=2, default=0)
     selling_rate = models.DecimalField(max_digits=10,decimal_places=2, default=0)
     quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
@@ -141,7 +142,7 @@ class SalesItem(models.Model):
     sale = models.ForeignKey(Sale,on_delete=models.CASCADE,related_name='items' )
     product_batch = models.ForeignKey('Product_Batch', on_delete=models.PROTECT, related_name='sales_items')
     product_name = models.CharField(max_length=100)     
-    batch_number = models.CharField(max_length=50)      
+    batch_number = models.CharField(max_length=50, null=True)      
     cost_rate = models.DecimalField(max_digits=10,decimal_places=2, default=0)
     selling_rate = models.DecimalField(max_digits=10,decimal_places=2, default=0)
     quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])

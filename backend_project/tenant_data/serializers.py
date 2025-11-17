@@ -57,12 +57,30 @@ class ProductBatchSerializer(serializers.ModelSerializer):
 
 
 class PurchaseItemCreateSerializer(serializers.Serializer):
-    batch_number = serializers.CharField(max_length=50)
+    batch_number = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
     product_id = serializers.IntegerField()
-    expiry_date = serializers.DateTimeField()
+    expiry_date = serializers.DateTimeField(required=False, allow_null=True)
     quantity = serializers.IntegerField(min_value=1)
     cost_rate = serializers.DecimalField(max_digits=10, decimal_places=2)
     selling_rate = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+    def validate(self, data):
+        product_id = data.get('product_id')
+        if product_id is None:
+            raise serializers.ValidationError("product_id is required")
+        try:
+            product = Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            raise serializers.ValidationError("Invalid product_id")
+        if product.expirable:
+            if 'batch_number' not in data or not data['batch_number']:
+                raise serializers.ValidationError({"batch_number": "This field is required for expirable products."})
+            if 'expiry_date' not in data or data['expiry_date'] is None:
+                raise serializers.ValidationError({"expiry_date": "This field is required for expirable products."})
+        else:
+            data['batch_number'] = None
+            data['expiry_date'] = None
+        return data
 
 class PurchaseItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -78,23 +96,19 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
-        validated_data.pop('total_amount', None)  # Ignore input total_amount, calculate from items
+        validated_data.pop('total_amount', None) 
         purchase = Purchase.objects.create(**validated_data)
         total = 0
         for item_data in items_data:
-            product_id = item_data.pop('product_id')
-            expiry_date = item_data.pop('expiry_date')
-            product = Product.objects.get(id=product_id)
-            # Create Product_Batch
+            product = Product.objects.get(id=item_data['product_id'])
             batch = Product_Batch.objects.create(
                 product=product,
                 batch_number=item_data['batch_number'],
-                expiry_date=expiry_date,
+                expiry_date=item_data['expiry_date'],
                 quantity=item_data['quantity'],
                 selling_rate=item_data['selling_rate'],
                 cost_rate=item_data['cost_rate'],
             )
-            # Create PurchaseItem
             purchase_item = PurchaseItem.objects.create(
                 purchase=purchase,
                 product_batch=batch,
@@ -115,7 +129,7 @@ class PurchaseSerializer(serializers.ModelSerializer):
         return ret
 
 class SalesItemCreateSerializer(serializers.Serializer):
-    batch_number = serializers.CharField(max_length=50)
+    batch_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
 
 class SalesItemSerializer(serializers.ModelSerializer):
@@ -141,24 +155,41 @@ class SaleSerializer(serializers.ModelSerializer):
         total_quantity = 0
         for item_data in items_data:
             try:
-                batch = Product_Batch.objects.get(batch_number=item_data['batch_number'])
+                batch = Product_Batch.objects.get(id=item_data['batch_id'])
+                print(f"***********{batch.__dict__}***************")
+                product = batch.product
+                print(f"***********{product.__dict__}***************")
+                print(f"***********{product.expirable}***************")
+                
+                
             except Product_Batch.DoesNotExist:
-                raise serializers.ValidationError(f"Batch with number {item_data['batch_number']} does not exist.")
+                raise serializers.ValidationError(f"Batch with id {item_data['batch_id']} does not exist.")
             if item_data['quantity'] > batch.quantity:
-                raise serializers.ValidationError(f"Insufficient quantity in batch {item_data['batch_number']}. Available: {batch.quantity}")
-            # Create SalesItem
-            sales_item = SalesItem.objects.create(
-                sale=sale,
-                product_batch=batch,
-                product_name=batch.product.name,
-                batch_number=batch.batch_number,
-                cost_rate=batch.cost_rate,
-                selling_rate=batch.selling_rate,
-                quantity=item_data['quantity'],
-            )
+                raise serializers.ValidationError(f"Insufficient quantity in batch {item_data['batch_id']}. Available: {batch.quantity}")            
+            if not product.expirable:
+                print(f"if run{batch.id}")
+                sales_item = SalesItem.objects.create(
+                    sale=sale,
+                    product_batch=batch,
+                    product_name=batch.product.name,
+                    batch_number=None,
+                    cost_rate=batch.cost_rate,
+                    selling_rate=batch.selling_rate,
+                    quantity=item_data['quantity'],
+                )
+            else:
+                print( f"else run{batch.id}")
+                sales_item = SalesItem.objects.create(
+                    sale=sale,
+                    product_batch=batch,
+                    product_name=batch.product.name,
+                    batch_number=batch.batch_number,
+                    cost_rate=batch.cost_rate,
+                    selling_rate=batch.selling_rate,
+                    quantity=item_data['quantity'],
+                )
             total_amount += sales_item.total_selling_price
             total_quantity += sales_item.quantity
-            # Update batch quantity
             batch.quantity -= sales_item.quantity
             batch.save()
         sale.total_amount = total_amount
