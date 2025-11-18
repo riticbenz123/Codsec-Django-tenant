@@ -64,7 +64,6 @@ class Product_Batch(models.Model):
         ordering = ['-added_date']
         
 
-
 class PurchaseItem(models.Model):
     purchase = models.ForeignKey('Purchase', on_delete=models.CASCADE, related_name='items')
     product_batch = models.ForeignKey('Product_Batch', on_delete=models.PROTECT, related_name='purchase_items')
