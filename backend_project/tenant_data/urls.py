@@ -3,14 +3,14 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('products/', views.product_list_create, name='product-list'),
-    path('products/<int:pk>/', views.product_detail, name='product-detail'),
+    # path('products/', views.product_list_create, name='product-list'),
+    # path('products/<int:pk>/', views.product_detail, name='product-detail'),
     
-    path('batches/', views.batch_list_create, name='batch-list'),
-    path('batches/<int:pk>/', views.batch_detail, name='batch-detail'),
+    # path('batches/', views.batch_list_create, name='batch-list'),
+    # path('batches/<int:pk>/', views.batch_detail, name='batch-detail'),
     
-    path('tenantdata/', views.tenantdata_list_create, name='tenantdata-list'),
-    path('tenantdata/<int:pk>/', views.tenantdata_detail, name='tenantdata-detail'),
+    # path('tenantdata/', views.tenantdata_list_create, name='tenantdata-list'),
+    # path('tenantdata/<int:pk>/', views.tenantdata_detail, name='tenantdata-detail'),
     
     # path('sales/create/', views.create_sale, name='create_sale'),
     # path('sales/', views.show_all_sale, name='show_all_sale'),
@@ -21,6 +21,18 @@ urlpatterns = [
     path('purchases/create/', views.PurchaseCreateView.as_view(), name='create_purchase'),
     path('sales/create/', views.SaleCreateView.as_view(), name='create_sale'),
     path('reports/stocksLedger', views.StockLedgerView.as_view(), name='view_stock_ledger'),
+    path('reports/stocksLedgerSeperate', views.StockLedgerSeparatedView.as_view(), name='view_stock_ledger'),
+    path('reports/stocksLedgerSeperate', views.StockLedgerSeparatedView.as_view(), name='view_stock_ledger'),
+    
+    path('products/', views.ProductListCreateView.as_view(), name='product-list'),
+    path('products/<int:pk>/', views.ProductDetailView.as_view(), name='product-detail'),
+    
+    path('batches/', views.BatchListCreateView.as_view(), name='batch-list'),
+    path('batches/<int:pk>/', views.BatchDetailView.as_view(), name='batch-detail'),
+    
+    path('tenantdata/', views.TenantDataListCreateView.as_view(), name='tenantdata-list'),
+    path('tenantdata/<int:pk>/', views.TenantDataDetailView.as_view(), name='tenantdata-detail'),
+    
     
     
     
