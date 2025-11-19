@@ -1,6 +1,5 @@
-from decimal import Decimal
-
-from django.db.models import Sum
+from django.db.models.functions import Upper
+from django.http import JsonResponse
 from rest_framework import serializers
 
 from .models import *
@@ -28,6 +27,17 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = '__all__'
         read_only_fields = ('batch_count', 'total_quantity', 'total_cost_value', 'total_selling_value')
+        
+    def validate_name(self, value):
+        if not value:
+            return value
+        upper_value = value.upper()
+        qs = Product.objects.annotate(upper_name=Upper('name')).filter(upper_name=upper_value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            return JsonResponse({"success": False, "message": "A product with this name already exists."},status=400)
+        return value
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -48,12 +58,37 @@ class ProductBatchSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ('added_date', 'total_selling_price', 'total_cost_price')
 
-    def validate(self, data):
-        expiry = data.get('expiry_date')
-        added = data.get('added_date') or getattr(self.instance, 'added_date', None)
-        if expiry and added and expiry <= added:
-            raise serializers.ValidationError("expiry_date must be after added_date.")
-        return data
+    def validate_batch_number(self, value):
+
+        if not value or value.strip() == "":
+            return value
+
+        upper_batch = str(value).strip().upper()
+
+        queryset = Product_Batch.objects.exclude(batch_number__isnull=True) \
+                                        .exclude(batch_number__exact='') \
+                                        .annotate(upper_batch=Upper('batch_number')) \
+                                        .filter(upper_batch=upper_batch)
+
+        if self.instance and self.instance.pk:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        if queryset.exists():
+            raise serializers.ValidationError(
+                "A batch with this batch number already exists."
+            )
+        return value
+
+    def validate(self, attrs):
+        expiry = attrs.get('expiry_date')
+        added_date = attrs.get('added_date') or (
+            self.instance.added_date if self.instance else None
+        )
+        if expiry and added_date and expiry <= added_date:
+            raise serializers.ValidationError(
+                "Expiry date must be after the added date."
+            )
+        return attrs
 
 
 class PurchaseItemCreateSerializer(serializers.Serializer):
@@ -156,12 +191,8 @@ class SaleSerializer(serializers.ModelSerializer):
         for item_data in items_data:
             try:
                 batch = Product_Batch.objects.get(id=item_data['batch_id'])
-                print(f"***********{batch.__dict__}***************")
                 product = batch.product
-                print(f"***********{product.__dict__}***************")
-                print(f"***********{product.expirable}***************")
-                
-                
+
             except Product_Batch.DoesNotExist:
                 raise serializers.ValidationError(f"Batch with id {item_data['batch_id']} does not exist.")
             if item_data['quantity'] > batch.quantity:

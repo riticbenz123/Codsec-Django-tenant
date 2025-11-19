@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
-from django.http import Http404
-from django_tenants.utils import get_public_schema_name, get_tenant_model
 from django.core.exceptions import PermissionDenied
+from django.http import Http404, JsonResponse
+from django_tenants.utils import get_public_schema_name, get_tenant_model
 
 User = get_user_model()
 Tenant = get_tenant_model()
@@ -43,19 +43,14 @@ class TenantScopeMiddleware:
         if any(path.startswith(p) for p in PUBLIC_TENANT_PATHS):
             return response
 
-        print(request.user)
         if not request.user.is_authenticated:
-            raise NotAuthenticated("Authentication required for this tenant.")
+            return response
 
         if request.user.is_superuser:
             return response
-        print(request.user)
-        print(getattr(request.user, 'tenant', None))
-        print(tenant)
         
 
         if getattr(request.user, 'tenant', None) != tenant:
-            print("NO access")
-            raise PermissionDenied("You do not have access to this tenant.")
+            return JsonResponse({"success": False, "message": "Forbidden"},status=403)
 
         return response

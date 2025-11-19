@@ -1,10 +1,12 @@
 import datetime
 from decimal import Decimal
+
 from django.db.models import Sum
 from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
 from .models import *
 from .serializers import *
 
@@ -20,7 +22,7 @@ class ProductListCreateView(APIView):
             return Response({"error": "Tenant not resolved"}, status=400)
         qs = Product.objects.all()
         ser = ProductSerializer(qs, many=True)
-        return Response(ser.data)
+        return Response({"success":True, "data": ser.data}, status=status.HTTP_200_OK)
 
     def post(self, request):
         tenant = get_tenant(request)
@@ -29,8 +31,9 @@ class ProductListCreateView(APIView):
         ser = ProductSerializer(data=request.data)
         if ser.is_valid():
             ser.save()
-            return Response(ser.data, status=status.HTTP_201_CREATED)
-        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"success":True, "message": "Product Created Successfully"}, status=status.HTTP_201_CREATED)
+        return Response({"success": False,"errors": ser.errors }, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class ProductDetailView(APIView):
@@ -41,9 +44,9 @@ class ProductDetailView(APIView):
         try:
             obj = Product.objects.get(pk=pk)
         except Product.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"success":False, "message":"Product not found"},status=status.HTTP_404_NOT_FOUND)
         serializer = ProductSerializer(obj)
-        return Response(serializer.data)
+        return Response({"success":True, "data": serializer.data}, status=status.HTTP_200_OK)
 
     def put(self, request, pk):
         tenant = get_tenant(request)
@@ -52,12 +55,13 @@ class ProductDetailView(APIView):
         try:
             obj = Product.objects.get(pk=pk)
         except Product.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"success":False, "message":"Product not found"},status=status.HTTP_404_NOT_FOUND)
         serializer = ProductSerializer(obj, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"success":True, "message":"Product Updated", "data": serializer.data}, status=status.HTTP_200_OK)
+        return Response({"success": False,"errors": serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
+
 
     def delete(self, request, pk):
         tenant = get_tenant(request)
@@ -66,9 +70,9 @@ class ProductDetailView(APIView):
         try:
             obj = Product.objects.get(pk=pk)
         except Product.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"success":False, "message":"Product not found"},status=status.HTTP_404_NOT_FOUND)
         obj.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({"success":True, "message":"Product Deleted Successfully"},status=status.HTTP_204_NO_CONTENT)
 
 
 class BatchListCreateView(APIView):
@@ -78,7 +82,7 @@ class BatchListCreateView(APIView):
             return Response({"error": "Tenant not found"}, status=400)
         items = Product_Batch.objects.all()
         serializer = ProductBatchSerializer(items, many=True)
-        return Response(serializer.data)
+        return Response({"success":True, "data": serializer.data}, status=status.HTTP_200_OK)
 
     def post(self, request):
         tenant = get_tenant(request)
@@ -87,9 +91,8 @@ class BatchListCreateView(APIView):
         serializer = ProductBatchSerializer(data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response({"success":True, "message": "Product Batch Created Successfully"}, status=status.HTTP_201_CREATED)
+        return Response({"success": False,"errors": serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
 
 class BatchDetailView(APIView):
     def get(self, request, pk):
@@ -99,9 +102,9 @@ class BatchDetailView(APIView):
         try:
             obj = Product_Batch.objects.get(pk=pk)
         except Product_Batch.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"success":False, "message":"Product Batch not found"},status=status.HTTP_404_NOT_FOUND)
         serializer = ProductBatchSerializer(obj)
-        return Response(serializer.data)
+        return Response({"success":True, "data": serializer.data}, status=status.HTTP_200_OK)
 
     def put(self, request, pk):
         tenant = get_tenant(request)
@@ -110,12 +113,12 @@ class BatchDetailView(APIView):
         try:
             obj = Product_Batch.objects.get(pk=pk)
         except Product_Batch.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"success":False, "message":"Product Batch not found"},status=status.HTTP_404_NOT_FOUND)
         serializer = ProductBatchSerializer(obj, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"success":True, "message":"Product Batch Updated", "data": serializer.data}, status=status.HTTP_200_OK)
+        return Response({"success": False,"errors": serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         tenant = get_tenant(request)
@@ -124,45 +127,45 @@ class BatchDetailView(APIView):
         try:
             obj = Product_Batch.objects.get(pk=pk)
         except Product_Batch.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return Response({"success":False, "message":"Product Batch not found"},status=status.HTTP_404_NOT_FOUND)
         obj.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({"success":True, "message":"Product Batch Deleted Successfully"},status=status.HTTP_204_NO_CONTENT)
 
 
-class SaleCreateView(APIView):
+class SaleView(APIView):
     def get(self, request):
         tenant = get_tenant(request)
         if not tenant:
             return Response({"error": "Tenant not resolved"}, status=400)
         qs = Sale.objects.all()
         ser = SaleSerializer(qs, many=True)
-        return Response(ser.data)
+        return Response({"success":True, "data": ser.data}, status=status.HTTP_200_OK)
     
     def post(self, request):
         serializer = SaleSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"success":True, "message":"Sale Created Successfully", "data": serializer.data}, status=status.HTTP_200_OK)
+        return Response({"success": False,"errors": serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
 
 
-class PurchaseCreateView(APIView):
+
+class PurchaseView(APIView):
     def get(self, request):
         tenant = get_tenant(request)
         if not tenant:
             return Response({"error": "Tenant not resolved"}, status=400)
         qs = Purchase.objects.all()
         ser = PurchaseSerializer(qs, many=True)
-        return Response(ser.data)
+        return Response({"success":True, "data": ser.data}, status=status.HTTP_200_OK)
+
     
     def post(self, request):
         serializer = PurchaseSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    
+            return Response({"success":True, "message":"Purchase Created Successfully", "data": serializer.data}, status=status.HTTP_200_OK)
+        return Response({"success": False,"errors": serializer.errors }, status=status.HTTP_400_BAD_REQUEST)
 
 class TenantDataListCreateView(APIView):
     def get(self, request):
@@ -314,7 +317,7 @@ class StockLedgerView(APIView):
                 'closing': closing
             })
 
-        return Response(ledger)
+        return Response({"success":True, "data":ledger})
     
     
 class StockLedgerSeparatedView(APIView):
@@ -421,9 +424,17 @@ class StockLedgerSeparatedView(APIView):
                     'avg_selling_price': closing_avg_selling
                 })
 
-        return Response({
+        # return Response({
+        #     'openings': openings_list,
+        #     'purchases': purchases_list,
+        #     'sales': sales_list,
+        #     'closings': closings_list
+        # })
+        
+        return Response({"success":True, "data":{
             'openings': openings_list,
             'purchases': purchases_list,
             'sales': sales_list,
             'closings': closings_list
-        })
+        }})
+        

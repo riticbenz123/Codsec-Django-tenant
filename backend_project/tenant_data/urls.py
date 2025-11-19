@@ -18,8 +18,8 @@ urlpatterns = [
     # path('purchases/create/', views.create_purchase, name='create_purchase'),
     # path('purchases/', views.show_all_purchases, name='show_all_purchases'),
     
-    path('purchases/create/', views.PurchaseCreateView.as_view(), name='create_purchase'),
-    path('sales/create/', views.SaleCreateView.as_view(), name='create_sale'),
+    path('purchases/', views.PurchaseView.as_view(), name='create_purchase'),
+    path('sales/', views.SaleView.as_view(), name='create_sale'),
     path('reports/stocksLedger', views.StockLedgerView.as_view(), name='view_stock_ledger'),
     path('reports/stocksLedgerSeperate', views.StockLedgerSeparatedView.as_view(), name='view_stock_ledger'),
     path('reports/stocksLedgerSeperate', views.StockLedgerSeparatedView.as_view(), name='view_stock_ledger'),
